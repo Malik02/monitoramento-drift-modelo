@@ -51,6 +51,12 @@ MODELO_INFO = Gauge(
     "api_modelo_info", "Versão do modelo carregado", ["versao", "modelo"], registry=REGISTRO
 )
 
+# Inicializa as séries de erro com zero: sem isso, o primeiro erro cria a série já
+# com valor 1 e o rate() do Prometheus não enxerga esse incremento.
+for _status in ("422", "500"):
+    ERROS.labels(rota="/predict", status=_status)
+    REQUISICOES.labels(rota="/predict", status=_status)
+
 # Esquema de entrada: todas as features numéricas e opcionais (nulos são aceitos
 # e pontuados, porque o modelo os trata; o monitor é quem acusa o problema).
 Cliente = create_model(  # type: ignore[call-overload]

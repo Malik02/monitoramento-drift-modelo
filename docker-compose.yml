@@ -1,0 +1,74 @@
+name: monitoramento-drift
+
+services:
+  api:
+    image: monitoramento-drift:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: api-credito
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  simulador:
+    # Mesma imagem da API (construída uma vez só, pelo serviço "api").
+    image: monitoramento-drift:local
+    pull_policy: never
+    container_name: simulador-monitor
+    command: ["python", "-m", "monitoramento.simulador"]
+    environment:
+      URL_API: http://api:8000
+      PORTA_MONITOR: "8001"
+      DIAS_SIMULADOS: ${DIAS_SIMULADOS:-60}
+      SEGUNDOS_POR_DIA: ${SEGUNDOS_POR_DIA:-4}
+      SAIDA_LINHA_DO_TEMPO: /tmp/linha_do_tempo.csv
+    ports:
+      - "8001:8001"
+    depends_on:
+      api:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=1d
+      - --web.enable-lifecycle
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alertas.yml:/etc/prometheus/alertas.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      api:
+        condition: service_healthy   # evita contar o tempo de carga do modelo como indisponibilidade
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/monitoramento.json
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus

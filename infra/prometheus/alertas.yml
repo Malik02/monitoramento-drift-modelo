@@ -1,0 +1,90 @@
+# Regras de alerta do modelo de crédito.
+# Os "for:" são curtos porque o tempo está comprimido (1 dia simulado ~ 4 s).
+# Em produção seriam algo como 1 dia para drift e 5-15 min para serviço.
+groups:
+  - name: servico
+    rules:
+      - alert: ApiIndisponivel
+        expr: up{job="api-credito"} == 0
+        for: 15s
+        labels: { severidade: critica, categoria: servico }
+        annotations:
+          summary: "API de crédito fora do ar"
+          description: "O Prometheus não consegue coletar métricas da API há mais de 15 s."
+
+      - alert: TaxaDeErroAlta
+        expr: |
+          sum(rate(api_erros_total{rota="/predict"}[30s]))
+            / sum(rate(api_requisicoes_total{rota="/predict"}[30s])) > 0.05
+        for: 5s
+        labels: { severidade: critica, categoria: servico }
+        annotations:
+          summary: "Mais de 5% das requisições de /predict com erro"
+          description: "Taxa de erro atual: {{ $value | humanizePercentage }}."
+
+      - alert: LatenciaP95Alta
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(api_latencia_segundos_bucket{rota="/predict"}[1m]))) > 0.25
+        for: 30s
+        labels: { severidade: alerta, categoria: servico }
+        annotations:
+          summary: "Latência p95 de /predict acima de 250 ms"
+          description: "p95 atual: {{ $value | humanizeDuration }}."
+
+  - name: qualidade-dos-dados
+    rules:
+      - alert: TaxaDeNulosAlta
+        expr: monitor_taxa_nulos > 0.05
+        for: 0s
+        labels: { severidade: critica, categoria: qualidade }
+        annotations:
+          summary: "Nulos acima de 5% em {{ $labels.feature }}"
+          description: "{{ $labels.feature }} chegou com {{ $value | humanizePercentage }} de nulos no último lote."
+
+      - alert: ValoresForaDoIntervalo
+        expr: monitor_taxa_fora_intervalo > 0.01
+        for: 0s
+        labels: { severidade: critica, categoria: qualidade }
+        annotations:
+          summary: "Valores fora da faixa de domínio em {{ $labels.feature }}"
+          description: "{{ $value | humanizePercentage }} dos registros de {{ $labels.feature }} estão fora da faixa válida."
+
+  - name: drift
+    rules:
+      - alert: DriftModerado
+        expr: monitor_psi > 0.1 and monitor_psi <= 0.2
+        for: 0s
+        labels: { severidade: aviso, categoria: drift }
+        annotations:
+          summary: "PSI entre 0,1 e 0,2 em {{ $labels.feature }}"
+          description: "PSI = {{ $value | printf \"%.3f\" }}: mudança moderada, acompanhar."
+
+      - alert: DriftSignificativo
+        expr: monitor_psi > 0.2
+        for: 10s
+        labels: { severidade: critica, categoria: drift }
+        annotations:
+          summary: "PSI acima de 0,2 em {{ $labels.feature }}"
+          description: "PSI = {{ $value | printf \"%.3f\" }}: população mudou de forma significativa. Investigar a origem e avaliar retreino."
+
+      - alert: DriftNoScore
+        expr: monitor_psi_score > 0.2
+        for: 10s
+        labels: { severidade: critica, categoria: drift }
+        annotations:
+          summary: "Distribuição do score mudou (PSI > 0,2)"
+          description: "PSI do score = {{ $value | printf \"%.3f\" }}. Impacto direto na taxa de aprovação."
+
+  - name: performance
+    rules:
+      - alert: QuedaDeAUC
+        # Média móvel de ~5 dias simulados (20 s) para não alarmar com o ruído diário.
+        expr: |
+          avg_over_time(monitor_performance{metrica="auc"}[20s])
+            < ignoring(metrica) (monitor_auc_baseline - 0.05)
+        for: 10s
+        labels: { severidade: critica, categoria: performance }
+        annotations:
+          summary: "AUC caiu mais de 5 p.p. abaixo do baseline"
+          description: "AUC (média móvel) = {{ $value | printf \"%.3f\" }}. Provável drift de conceito: avaliar retreino."
