@@ -107,7 +107,7 @@ a inadimplência leva de 30 a 90 dias para ser observada).
 | 15-19 | **drift de covariável** em rampa: `LIMIT_BAL` até +50% e `AGE` até −5 anos | PSI cruza 0,1 e depois 0,2 | AGE: 0,08 → 0,12 → 0,22; LIMIT_BAL chega a ~0,8 no dia 19 |
 | 20-39 | drift de covariável estável | PSI alto, **AUC continua normal** | PSI LIMIT_BAL 0,64-0,93; AUC 0,75-0,80 |
 | 28-30 | **incidente de qualidade**: 30% de nulos em `PAY_0`, `BILL_AMT1`, `PAY_AMT1`; 10% `AGE = -1`; 5% `EDUCATION = 99`; 3 requisições malformadas/dia | nulos e fora do intervalo disparam; erros HTTP 422 | nulos máx. 31-33%; fora do intervalo máx. 8-12% |
-| 40+ | **drift de conceito**: 12% dos clientes em dia passam a inadimplir, 35% dos atrasados se recuperam | **nada muda no PSI**; a AUC cai quando os rótulos chegam (dia 45) | PSI do score continua < 0,06; AUC 0,58-0,65 |
+| 40+ | **drift de conceito**: 12% dos clientes em dia passam a inadimplir, 35% dos atrasados se recuperam | **nada muda no PSI**; a AUC cai quando os rótulos chegam (dia 45) | PSI do score continua < 0,1; AUC 0,58-0,65 |
 
 ## PSI: fórmula, limiares e por quê
 
@@ -195,8 +195,25 @@ não acorda ninguém de madrugada.
 - **Drift de covariável**: PSI de `AGE` vai de ~0,02 a 0,22 no dia 17 (terceiro dia da
   rampa) e se estabiliza em 0,3-0,6; `LIMIT_BAL` passa de 0,8. A AUC **não cai**.
 - **Qualidade**: nulos saltam de 0% para ~31% nos dias 28-30 e voltam a 0% no dia 31.
-- **Drift de conceito**: o PSI do score fica abaixo de 0,06 o tempo todo, mas a AUC
+- **Drift de conceito**: o PSI do score fica abaixo de 0,1 o tempo todo (máx. 0,085), mas a AUC
   cai de ~0,78 (média dos dias 1-39) para ~0,62 (dias 40-55) quando os rótulos chegam.
+
+### Alertas que dispararam numa execução real (`docker compose up`)
+
+| Alerta | Dia simulado aproximado | Duração |
+|---|---|---|
+| `DriftModerado` (AGE, LIMIT_BAL) | 16-17 | passageiro, até o PSI cruzar 0,2 |
+| `DriftSignificativo` (AGE, LIMIT_BAL) | 19 em diante | até o fim (a população nova é permanente) |
+| `TaxaDeNulosAlta` (PAY_0, BILL_AMT1, PAY_AMT1) | 28-30 | some quando o incidente acaba |
+| `ValoresForaDoIntervalo` (AGE, EDUCATION) | 28-30 | idem |
+| `DriftModerado` (EDUCATION) | 28-30 | o código 99 também desloca a distribuição |
+| `TaxaDeErroAlta` | 30-31 | 9 requisições 422 em 729 no total |
+| `QuedaDeAUC` | ~48 (rótulos do dia ~43) | até o fim |
+
+Não dispararam (como esperado): `ApiIndisponivel` (disponibilidade 100%),
+`LatenciaP95Alta` (p95 de ~25 ms) e `DriftNoScore`.
+
+Screenshot: `CHROME=/caminho/do/chrome scripts/capturar_dashboard.sh` (Chromium headless, com a stack no ar).
 
 ## Testes e CI
 
@@ -222,6 +239,8 @@ O GitHub Actions roda `ruff` + `pytest` a cada push ([`ci.yml`](.github/workflow
   offline é um esboço disso).
 - O PSI por feature é univariado: não detecta mudança na correlação entre features.
 - Os alertas não têm Alertmanager (sem roteamento para Slack, PagerDuty etc.).
+- A latência medida é a do processo da API; não há injeção de lentidão nem de
+  indisponibilidade na demo (os alertas de serviço existem, mas ficam verdes).
 - Grafana com senha padrão e acesso anônimo de leitura: adequado só para demo local.
 
 ## Próximos passos

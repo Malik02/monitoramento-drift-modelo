@@ -14,6 +14,6 @@ if [[ -z "$CHROME" ]]; then
 fi
 
 "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
-  --window-size=1800,2350 --virtual-time-budget=20000 \
+  --window-size=1800,2000 --virtual-time-budget=20000 \
   --screenshot="$SAIDA" "$URL"
 echo "Screenshot salvo em $SAIDA"
