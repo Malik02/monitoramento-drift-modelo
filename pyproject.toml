@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monitoramento"
+version = "0.1.0"
+description = "Monitoramento de drift, qualidade de dados e performance de um modelo de crédito em produção (Prometheus + Grafana)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Abdul Malik de Barros" }]
+license = { text = "MIT" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "NPY"]

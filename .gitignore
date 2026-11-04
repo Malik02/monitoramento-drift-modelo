@@ -1,0 +1,25 @@
+# Ambientes e caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Dados brutos e artefatos gerados (recriados por script / no build da imagem)
+dados/
+artefatos/
+resultados/
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store

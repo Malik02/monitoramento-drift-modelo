@@ -1,0 +1,11 @@
+# Dependências de execução (imagem Docker e CI)
+numpy==2.1.3
+pandas==2.2.3
+scikit-learn==1.5.2
+scipy==1.14.1
+xlrd==2.0.1
+joblib==1.4.2
+fastapi==0.115.6
+uvicorn==0.32.1
+prometheus-client==0.21.1
+requests==2.32.3
